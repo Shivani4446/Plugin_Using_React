@@ -4,6 +4,8 @@ import { useState, useEffect } from '@wordpress/element';
 import { Panel, PanelBody, PanelRow, Button, TextareaControl, CheckboxControl, SelectControl } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
 
+
+// test
 const SettingsPage = () => {
   const [notice, setNotice] = useState('');
   const [bgColor, setBgColor] = useState('#a0b8c3');
