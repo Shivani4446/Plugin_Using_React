@@ -77,6 +77,8 @@ function display_product_notices() {
 }
 add_action('woocommerce_single_product_summary', 'display_product_notices', 25);
 
+
+
 // Create a settings link for your plugin.
 function product_notices_react_settings_link( $links ) {
     $settings_link = '<a href="options-general.php?page=product-notices-react">' . __( 'Settings', 'product-notices-react' ) . '</a>';
@@ -84,6 +86,7 @@ function product_notices_react_settings_link( $links ) {
     return $links;
 }
 add_filter( 'plugin_action_links_' . plugin_basename( __FILE__ ), 'product_notices_react_settings_link' );
+
 
 // Register REST API endpoint
 function product_notices_register_api() {
@@ -97,6 +100,7 @@ function product_notices_register_api() {
 }
 add_action('rest_api_init', 'product_notices_register_api');
 
+
 // Handle the POST request to save product notices
 function product_notices_save(WP_REST_Request $request) {
     $user_id = get_current_user_id();
@@ -106,6 +110,7 @@ function product_notices_save(WP_REST_Request $request) {
     $borderRadius = intval($request->get_param('borderRadius'));
     $fontSize = sanitize_text_field($request->get_param('fontSize')); // Capture font size
     $category = sanitize_text_field($request->get_param('category'));
+    $tags = sanitize_text_field($request->get_param('tags'));
     $productId = intval($request->get_param('productId')); 
 
     if (empty($notice)) {
@@ -121,6 +126,7 @@ function product_notices_save(WP_REST_Request $request) {
     $notices["{$user_id}_borderRadius"] = $borderRadius;
     $notices["{$user_id}_fontSize"] = $fontSize; // Save the font size
     $notices["{$user_id}_category"] = $category;
+    $notices["{$user_id}_tags"] = $tags;
     $notices["{$user_id}_productId"] = $productId;
 
     update_option('product_notices', $notices);
@@ -128,17 +134,7 @@ function product_notices_save(WP_REST_Request $request) {
     return new WP_REST_Response('Notice saved successfully', 200);
 }
 
-
-
-
-
-
-
-
-
-
-
-
+// api to get the product-categories for drop-down
 add_action('rest_api_init', function () {
     register_rest_route('product-notices/v1', '/get-product-categories', array(
         'methods' => 'GET',
@@ -189,61 +185,50 @@ function get_product_notice_product_categories() {
     }, $categories);
 }
 
-
-
-
-
-
-function register_product_data_endpoint() {
-    register_rest_route('product-notices/v1', '/get-products', array(
+// api to get product-tags 
+add_action('rest_api_init', function () {
+    register_rest_route('product-notices/v1', '/get-product-tags', array(
         'methods' => 'GET',
-        'callback' => 'get_product_data',
-        'permission_callback' => function() {
-            return current_user_can('edit_posts');
-        }
+        'callback' => 'get_product_notice_product_tags',
+        'permission_callback' => function () {
+            return current_user_can('edit_posts'); // Adjust as needed
+        },
     ));
-}
-add_action('rest_api_init', 'register_product_data_endpoint');
+});
 
-
-function get_product_data() {
+function get_product_notice_product_tags() {
     global $wpdb;
     
     $query = "
     SELECT 
-        p.ID as id,
-        p.post_title,
-        p.post_type
+        tt.term_taxonomy_id,
+        t.name
     FROM 
-        {$wpdb->posts} p
+        {$wpdb->term_taxonomy} tt
+    JOIN 
+        {$wpdb->terms} t ON t.term_id = tt.term_id
     WHERE 
-        p.post_type = 'product'
-    ORDER BY 
-        p.post_title ASC
+        tt.taxonomy = 'product_tag' 
     ";
-
-    $products = $wpdb->get_results($query); // Fetch the products
-
-    if (empty($products)) {
-        return new WP_Error('no_products', 'No products found', array('status' => 404));
+    
+    $tags = $wpdb->get_results($query);
+    
+    if (empty($tags)) {
+        return new WP_Error('no_tags', 'No product tags found', array('status' => 404));
     }
-
-    return array_map(function($product) {
+    
+    return array_map(function($category) {
         return array(
-            'id' => (int)$product->id,
-            'title' => $product->post_title, // Correctly reference post_title
-            'type' => (string)$product->post_type // Ensure post_type is a string
+            'term_taxonomy_id' => (int)$category->term_taxonomy_id,
+            'name' => $category->name,
         );
-    }, $products);
+    }, $tags);
 }
-
-
-
-
 
 remove_action('wp_headers', 'wp_headers');
 
-function allow_iframe() {
-    header('X-Frame-Options:ALLOW-FROM http://localhost:10005');
-}
-add_action('send_headers', 'allow_iframe');
+
+// function allow_iframe() {
+//     header('X-Frame-Options:ALLOW-FROM http://localhost:10005');
+// }
+// add_action('send_headers', 'allow_iframe');
